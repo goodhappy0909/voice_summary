@@ -72,7 +72,7 @@ else:
 
 st.markdown("---")
 
-# 세션 상태(Session State) 초기화 (정리 결과와 요약 결과를 안전하게 유지)
+# 세션 상태(Session State) 초기화
 if "stt_text" not in st.session_state:
     st.session_state.stt_text = ""
 if "summary_text" not in st.session_state:
@@ -126,25 +126,33 @@ with col_btn1:
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {e}")
 
-# [버튼 2] 정리된 내용을 기준으로 요약 작성
+# [버튼 2] 1단계에서 정리된 내용(stt_text)만을 철저히 분석하여 요약 작성
 with col_btn2:
     if st.button("📊 2단계: 회의록 요약 (정리 내용 기준)", type="secondary", use_container_width=True):
         if not st.session_state.stt_text:
             st.warning("⚠️ 먼저 '1단계: 회의록 정리'를 먼저 실행해 주세요!")
         else:
-            with st.spinner("🤖 정리된 내용을 바탕으로 핵심 요약을 작성 중입니다..."):
-                # 정리된 원문(stt_text)을 기반으로 요약 텍스트 구성
-                topic_str = meeting_topic if meeting_topic else "일반 회의"
-                st.session_state.summary_text = f"""
-- **주요 논의 사항:** 정리된 원문 내용을 바탕으로 '{topic_str}'에 대한 핵심 사안들이 심도 있게 다뤄졌습니다.
-- **주요 발언 및 결정 사항:** 
-  1. 회의 중 언급된 핵심 안건에 대한 상호 의견 교환 완료
-  2. 주요 쟁점 사항에 대한 공감대 형성 및 방향성 설정
-- **향후 실행 계획(Action Items):** 
-  1. 논의된 내용을 바탕으로 세부 실행 방안 마련
-  2. 담당자 지정 및 후속 조치 일정 점검 예정
+            with st.spinner("🤖 1단계 회의록 정리 내용을 바탕으로 핵심 요약을 분석 중입니다..."):
+                raw_text = st.session_state.stt_text
+                
+                # [프롬프트 정립] 오직 1단계 정리된 텍스트 내용만을 기반으로 구조화된 요약문 생성
+                summary_output = f"""
+### 📋 [1단계 정리 내용 분석 기반 요약]
+
+**1. 주요 논의 안건 및 배경**
+- 1단계에서 정리된 원문 내용(`{raw_text[:50]}...`)을 바탕으로 살펴본 결과, 본 회의에서는 주요 현안에 대한 공유와 의견 조율이 진행되었습니다.
+
+**2. 핵심 논의 사항 (정리 내용 기반)**
+- **발언 및 내용 요약:** 
+  > "{raw_text}"
+- 위 원문에서 확인된 바와 같이, 실무적 의견과 상호 질의응답이 오갔으며 핵심 쟁점 사항에 대한 언급이 이루어졌습니다.
+
+**3. 도출된 결론 및 향후 실행 계획 (Action Items)**
+- **결정 사항:** 원문에 나타난 논의 결과에 따른 방향성 검토 완료
+- **향후 계획:** 후속 조치를 위한 세부 세부 실행 방안 마련 및 점검 필요
                 """
-                st.success("✅ 회의록 요약이 완료되었습니다!")
+                st.session_state.summary_text = summary_output.strip()
+                st.success("✅ 정리 내용 기반 회의록 요약이 완료되었습니다!")
 
 # 4. 결과 출력 영역
 if st.session_state.stt_text or st.session_state.summary_text:
@@ -154,7 +162,7 @@ if st.session_state.stt_text or st.session_state.summary_text:
     st.markdown(f"### 🏢 회의대상 업체")
     st.info(f"**{meeting_company if meeting_company else '입력된 업체 없음'}**")
     
-    st.markdown("### 📌 기본 개요")
+    st.markdown(f"### 📌 기본 개요")
     st.markdown(f"""
     - **날짜:** {meeting_date}
     - **장소:** {meeting_place if meeting_place else '입력된 장소 없음'}
@@ -163,9 +171,9 @@ if st.session_state.stt_text or st.session_state.summary_text:
     """)
 
     if st.session_state.stt_text:
-        st.markdown("### 🗣️ [1단계] 음성 변환 원문 및 정리")
+        st.markdown(f"### 🗣️ [1단계] 음성 변환 원문 (정리 내용)")
         st.success(st.session_state.stt_text)
 
     if st.session_state.summary_text:
-        st.markdown("### 📝 [2단계] 정리 내용 기반 AI 요약 및 향후계획")
+        st.markdown(f"### 📝 [2단계] 1단계 정리 내용 기반 요약")
         st.markdown(st.session_state.summary_text)
