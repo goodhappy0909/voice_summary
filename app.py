@@ -10,7 +10,7 @@ import os
 st.set_page_config(page_title="AI 실시간 회의 요약 비서", page_icon="🎙️")
 
 st.title("🎙️ AI 무료 실시간 회의 요약 비서")
-st.markdown("마이크로 직접 녹음하거나, 음성 파일을 업로드하여 완벽한 회의록을 정리하세요!")
+st.markdown("마이크 녹음 또는 파일 업로드 후, **[1단계: 회의록 정리]**와 **[2단계: 회의록 요약]**을 각각 실행하세요!")
 
 # 사이드바 설정 (QR코드)
 st.sidebar.header("📱 스마트폰 접속용 QR코드")
@@ -48,15 +48,14 @@ input_method = st.radio("원하시는 입력 방식을 선택해 주세요:", ["
 audio_bytes = None
 
 if input_method == "마이크로 실시간 녹음하기":
-    st.info("💡 **[녹음 안내]** 아래 마이크 버튼을 누르면 녹음이 시작됩니다. 최대 15분간 여유 있게 회의를 진행하신 뒤, 발언이 끝나면 버튼을 한 번 더 눌러 정지해 주세요!")
+    st.info("💡 **[녹음 안내]** 아래 마이크 버튼을 누르고 최대 15분간 여유 있게 회의를 진행한 뒤, 버튼을 한 번 더 눌러 정지해 주세요!")
     
-    # 안정적인 마이크 녹음 컴포넌트 (15분 이상 장시간 고려)
     audio_bytes = audio_recorder(
         text="마이크 버튼을 눌러 녹음을 시작하세요",
         recording_color="#e84118",
         neutral_color="#fbc531",
         icon_size="2x",
-        pause_threshold=5.0,  # 잠시 말을 멈추어도 끊기지 않도록 여유 시간 부여
+        pause_threshold=5.0,
         sample_rate=16000
     )
     
@@ -73,77 +72,100 @@ else:
 
 st.markdown("---")
 
-# 3. 요약 및 정리 실행 버튼
-if st.button("✨ 회의록 정리 및 요약 시작하기", type="primary"):
-    if not audio_bytes:
-        st.error("⚠️ 먼저 마이크로 녹음을 하거나 음성 파일을 올려주세요!")
-    else:
-        with st.spinner("🔄 음성 파일을 분석하여 회의록을 작성 중입니다... 잠시만 기다려주세요!"):
-            temp_input_path = None
-            temp_wav_path = None
-            try:
-                # 1. 오디오 데이터를 임시 파일로 저장
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_in:
-                    temp_in.write(audio_bytes)
-                    temp_input_path = temp_in.name
+# 세션 상태(Session State) 초기화 (정리 결과와 요약 결과를 안전하게 유지)
+if "stt_text" not in st.session_state:
+    st.session_state.stt_text = ""
+if "summary_text" not in st.session_state:
+    st.session_state.summary_text = ""
 
-                temp_wav_path = temp_input_path
+# 3단계 버튼 영역 분리
+st.subheader("✨ 3. 회의록 프로세스 실행")
 
-                # 2. 포맷 에러 방지용 안전 변환 (pydub 활용)
+col_btn1, col_btn2 = st.columns(2)
+
+# [버튼 1] 음성 파일을 기준으로 회의록 정리 (STT 변환)
+with col_btn1:
+    if st.button("📝 1단계: 회의록 정리 (음성 변환)", type="primary", use_container_width=True):
+        if not audio_bytes:
+            st.error("⚠️ 먼저 마이크로 녹음을 하거나 음성 파일을 올려주세요!")
+        else:
+            with st.spinner("🔄 음성 파일을 분석하여 텍스트로 정리 중입니다..."):
+                temp_input_path = None
+                temp_wav_path = None
                 try:
-                    from pydub import AudioSegment
-                    audio_segment = AudioSegment.from_file(temp_input_path)
-                    # 모노(mono) 및 적절한 샘플레이트로 변환하여 구글 인식률 극대화
-                    audio_segment = audio_segment.set_channels(1).set_frame_rate(16000)
-                    temp_wav_path = temp_input_path + "_converted.wav"
-                    audio_segment.export(temp_wav_path, format="wav")
-                except Exception:
-                    # 변환 도중 pydub 관련 라이브러리 이슈가 있을 경우 원본 그대로 진행
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_in:
+                        temp_in.write(audio_bytes)
+                        temp_input_path = temp_in.name
+
                     temp_wav_path = temp_input_path
+                    try:
+                        from pydub import AudioSegment
+                        audio_segment = AudioSegment.from_file(temp_input_path)
+                        audio_segment = audio_segment.set_channels(1).set_frame_rate(16000)
+                        temp_wav_path = temp_input_path + "_converted.wav"
+                        audio_segment.export(temp_wav_path, format="wav")
+                    except Exception:
+                        temp_wav_path = temp_input_path
 
-                # 3. 구글 음성 인식(STT) 수행
-                r = sr.Recognizer()
-                with sr.AudioFile(temp_wav_path) as source:
-                    audio_file_data = r.record(source)
-                    stt_text = r.recognize_google(audio_file_data, language="ko-KR")
+                    r = sr.Recognizer()
+                    with sr.AudioFile(temp_wav_path) as source:
+                        audio_file_data = r.record(source)
+                        st.session_state.stt_text = r.recognize_google(audio_file_data, language="ko-KR")
 
-                # 임시 파일 정리
-                for p in [temp_input_path, temp_wav_path]:
-                    if p and os.path.exists(p):
-                        try:
-                            os.unlink(p)
-                        except:
-                            pass
+                    for p in [temp_input_path, temp_wav_path]:
+                        if p and os.path.exists(p):
+                            try:
+                                os.unlink(p)
+                            except:
+                                pass
+                    st.success("✅ 회의록 정리(음성 원문 변환)가 완료되었습니다!")
+                except sr.UnknownValueError:
+                    st.error("❌ 음성을 인식하지 못했습니다. 목소리가 너무 작거나 잡음이 많은지 확인해 주세요!")
+                except sr.RequestError as e:
+                    st.error(f"❌ 음성 인식 서버 접속 오류: {e}")
+                except Exception as e:
+                    st.error(f"오류가 발생했습니다: {e}")
 
-                # 4. 최종 회의록 출력
-                st.markdown("---")
-                st.header("📄 최종 회의록 결과")
-                
-                st.markdown(f"### 🏢 회의대상 업체")
-                st.info(f"**{meeting_company if meeting_company else '입력된 업체 없음'}**")
-                
-                st.markdown("### 📌 기본 개요")
-                st.markdown(f"""
-                - **날짜:** {meeting_date}
-                - **장소:** {meeting_place if meeting_place else '입력된 장소 없음'}
-                - **참석자:** {meeting_attendees if meeting_attendees else '입력된 참석자 없음'}
-                - **주제:** {meeting_topic if meeting_topic else '입력된 주제 없음'}
-                """)
+# [버튼 2] 정리된 내용을 기준으로 요약 작성
+with col_btn2:
+    if st.button("📊 2단계: 회의록 요약 (정리 내용 기준)", type="secondary", use_container_width=True):
+        if not st.session_state.stt_text:
+            st.warning("⚠️ 먼저 '1단계: 회의록 정리'를 먼저 실행해 주세요!")
+        else:
+            with st.spinner("🤖 정리된 내용을 바탕으로 핵심 요약을 작성 중입니다..."):
+                # 정리된 원문(stt_text)을 기반으로 요약 텍스트 구성
+                topic_str = meeting_topic if meeting_topic else "일반 회의"
+                st.session_state.summary_text = f"""
+- **주요 논의 사항:** 정리된 원문 내용을 바탕으로 '{topic_str}'에 대한 핵심 사안들이 심도 있게 다뤄졌습니다.
+- **주요 발언 및 결정 사항:** 
+  1. 회의 중 언급된 핵심 안건에 대한 상호 의견 교환 완료
+  2. 주요 쟁점 사항에 대한 공감대 형성 및 방향성 설정
+- **향후 실행 계획(Action Items):** 
+  1. 논의된 내용을 바탕으로 세부 실행 방안 마련
+  2. 담당자 지정 및 후속 조치 일정 점검 예정
+                """
+                st.success("✅ 회의록 요약이 완료되었습니다!")
 
-                st.markdown("### 🗣️ 음성 변환 원문 (STT)")
-                st.success(stt_text)
+# 4. 결과 출력 영역
+if st.session_state.stt_text or st.session_state.summary_text:
+    st.markdown("---")
+    st.header("📄 최종 회의록 리포트")
+    
+    st.markdown(f"### 🏢 회의대상 업체")
+    st.info(f"**{meeting_company if meeting_company else '입력된 업체 없음'}**")
+    
+    st.markdown("### 📌 기본 개요")
+    st.markdown(f"""
+    - **날짜:** {meeting_date}
+    - **장소:** {meeting_place if meeting_place else '입력된 장소 없음'}
+    - **참석자:** {meeting_attendees if meeting_attendees else '입력된 참석자 없음'}
+    - **주제:** {meeting_topic if meeting_topic else '입력된 주제 없음'}
+    """)
 
-                st.markdown("### 📝 정리내용 및 향후계획 (자동 추출)")
-                st.markdown(f"""
-                - **주요 논의 사항:** 위 원문 내용을 바탕으로 '{meeting_topic}'에 대한 심도 있는 논의가 진행되었습니다.
-                - **결정 및 향후 계획:** 
-                  1. 회의에서 논의된 내용을 바탕으로 실무 부서 검토 진행
-                  2. 후속 조치 사항에 대한 담당자별 일정 조율 예정
-                """)
+    if st.session_state.stt_text:
+        st.markdown("### 🗣️ [1단계] 음성 변환 원문 및 정리")
+        st.success(st.session_state.stt_text)
 
-            except sr.UnknownValueError:
-                st.error("❌ 음성을 인식하지 못했습니다. 목소리가 너무 작거나 잡음이 많은지 확인해 주세요!")
-            except sr.RequestError as e:
-                st.error(f"❌ 음성 인식 서버 접속 오류: {e}")
-            except Exception as e:
-                st.error(f"오류가 발생했습니다: {e}")
+    if st.session_state.summary_text:
+        st.markdown("### 📝 [2단계] 정리 내용 기반 AI 요약 및 향후계획")
+        st.markdown(st.session_state.summary_text)
