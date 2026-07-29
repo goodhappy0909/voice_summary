@@ -1,4 +1,5 @@
 import streamlit as st
+from audio_recorder_streamlit import audio_recorder
 import qrcode
 from io import BytesIO
 import speech_recognition as sr
@@ -8,12 +9,12 @@ import os
 # 페이지 설정
 st.set_page_config(page_title="AI 실시간 회의 요약 비서", page_icon="🎙️")
 
-st.title("🎙️ AI 무료 회의 요약 비서")
-st.markdown("스마트폰 기본 녹음기로 녹음한 음성 파일을 업로드하여 완벽한 회의록을 정리하세요!")
+st.title("🎙️ AI 무료 실시간 회의 요약 비서")
+st.markdown("마이크로 직접 녹음하거나, 음성 파일을 업로드하여 완벽한 회의록을 정리하세요!")
 
 # 사이드바 설정 (QR코드)
 st.sidebar.header("📱 스마트폰 접속용 QR코드")
-app_url = st.sidebar.text_input("웹앱 주소(URL) 입력", "https://share.streamlit.io")
+app_url = st.sidebar.text_input("웹앱 주소(URL) 입력", "https://share.streamlit.app")
 
 if app_url:
     qr = qrcode.QRCode(box_size=10, border=2)
@@ -40,58 +41,81 @@ with col2:
 
 st.markdown("---")
 
-# 2. 음성 파일 업로드 방식 (가장 안정적이고 포맷 에러가 없는 방식)
-st.subheader("🎧 2. 회의 음성 파일 업로드")
-st.info("💡 **[사용 방법]** 스마트폰이나 PC의 기본 녹음 앱으로 회의를 15분 이상 길게 녹음한 뒤, 아래에 파일(`.wav`, `.mp3`, `.m4a`)을 업로드해 주세요!")
-
-uploaded_file = st.file_uploader("녹음된 회의 음성 파일을 올려주세요", type=["wav", "mp3", "m4a"])
+# 2. 음성 입력 방식 선택 (마이크 녹음 + 파일 업로드)
+st.subheader("🎧 2. 회의 음성 입력")
+input_method = st.radio("원하시는 입력 방식을 선택해 주세요:", ["마이크로 실시간 녹음하기", "음성 파일 업로드하기"])
 
 audio_bytes = None
-if uploaded_file is not None:
-    audio_bytes = uploaded_file.read()
-    st.audio(uploaded_file, format='audio/mp3')
-    st.success("음성 파일 업로드 완료!")
+
+if input_method == "마이크로 실시간 녹음하기":
+    st.info("💡 **[녹음 안내]** 아래 마이크 버튼을 누르면 녹음이 시작됩니다. 최대 15분간 여유 있게 회의를 진행하신 뒤, 발언이 끝나면 버튼을 한 번 더 눌러 정지해 주세요!")
+    
+    # 안정적인 마이크 녹음 컴포넌트 (15분 이상 장시간 고려)
+    audio_bytes = audio_recorder(
+        text="마이크 버튼을 눌러 녹음을 시작하세요",
+        recording_color="#e84118",
+        neutral_color="#fbc531",
+        icon_size="2x",
+        pause_threshold=5.0,  # 잠시 말을 멈추어도 끊기지 않도록 여유 시간 부여
+        sample_rate=16000
+    )
+    
+    if audio_bytes:
+        st.success("🎉 마이크 녹음이 완료되었습니다!")
+        st.audio(audio_bytes, format="audio/wav")
+
+else:
+    uploaded_file = st.file_uploader("녹음된 회의 음성 파일 업로드", type=["wav", "mp3", "m4a"])
+    if uploaded_file is not None:
+        audio_bytes = uploaded_file.read()
+        st.audio(uploaded_file, format='audio/mp3')
+        st.success("음성 파일 업로드 완료!")
 
 st.markdown("---")
 
 # 3. 요약 및 정리 실행 버튼
 if st.button("✨ 회의록 정리 및 요약 시작하기", type="primary"):
     if not audio_bytes:
-        st.error("⚠️ 먼저 녹음된 음성 파일을 업로드해 주세요!")
+        st.error("⚠️ 먼저 마이크로 녹음을 하거나 음성 파일을 올려주세요!")
     else:
         with st.spinner("🔄 음성 파일을 분석하여 회의록을 작성 중입니다... 잠시만 기다려주세요!"):
             temp_input_path = None
             temp_wav_path = None
             try:
-                # 업로드된 파일 포맷에 맞춰 임시 파일 생성
-                file_extension = os.path.splitext(uploaded_file.name)[1] if uploaded_file.name else ".mp3"
-                with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_in:
+                # 1. 오디오 데이터를 임시 파일로 저장
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_in:
                     temp_in.write(audio_bytes)
                     temp_input_path = temp_in.name
 
-                temp_wav_path = temp_input_path + ".wav"
+                temp_wav_path = temp_input_path
 
-                # pydub을 이용해 어떤 포맷이든 안전하게 WAV로 변환
+                # 2. 포맷 에러 방지용 안전 변환 (pydub 활용)
                 try:
                     from pydub import AudioSegment
                     audio_segment = AudioSegment.from_file(temp_input_path)
+                    # 모노(mono) 및 적절한 샘플레이트로 변환하여 구글 인식률 극대화
+                    audio_segment = audio_segment.set_channels(1).set_frame_rate(16000)
+                    temp_wav_path = temp_input_path + "_converted.wav"
                     audio_segment.export(temp_wav_path, format="wav")
                 except Exception:
+                    # 변환 도중 pydub 관련 라이브러리 이슈가 있을 경우 원본 그대로 진행
                     temp_wav_path = temp_input_path
 
-                # 구글 음성 인식(STT) 수행
+                # 3. 구글 음성 인식(STT) 수행
                 r = sr.Recognizer()
                 with sr.AudioFile(temp_wav_path) as source:
                     audio_file_data = r.record(source)
                     stt_text = r.recognize_google(audio_file_data, language="ko-KR")
 
                 # 임시 파일 정리
-                if temp_input_path and os.path.exists(temp_input_path):
-                    os.unlink(temp_input_path)
-                if temp_wav_path and os.path.exists(temp_wav_path):
-                    os.unlink(temp_wav_path)
+                for p in [temp_input_path, temp_wav_path]:
+                    if p and os.path.exists(p):
+                        try:
+                            os.unlink(p)
+                        except:
+                            pass
 
-                # 최종 회의록 출력
+                # 4. 최종 회의록 출력
                 st.markdown("---")
                 st.header("📄 최종 회의록 결과")
                 
