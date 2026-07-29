@@ -1,14 +1,14 @@
 import streamlit as st
+from audio_recorder_streamlit import audio_recorder
 
-# 웹페이지 제목
-st.title("🎙️ AI 음성 회의 요약 비서")
-st.markdown("회의 음성 파일을 올리거나 아래 정보를 입력하면 깔끔하게 회의록을 정리해 드립니다!")
+# 페이지 설정
+st.title("🎙️ AI 실시간 음성 회의 요약 비서")
+st.markdown("휴대폰이나 PC 마이크로 직접 녹음하거나, 음성 파일을 업로드하여 회의록을 정리하세요!")
 
 st.markdown("---")
 
-# 1. 기본 회의 정보 입력 (업체, 날짜, 장소, 참석자, 주제)
+# 1. 기본 회의 정보 입력
 st.subheader("📋 1. 기본 회의 정보")
-
 col1, col2 = st.columns(2)
 with col1:
     meeting_company = st.text_input("🏢 회의대상 업체", placeholder="예: (주)한국테크")
@@ -21,13 +21,33 @@ with col2:
 
 st.markdown("---")
 
-# 2. 음성 파일 업로드
-st.subheader("🎧 2. 회의 음성 파일 업로드")
-uploaded_file = st.file_uploader("녹음된 회의 음성 파일(mp3, wav, m4a)을 올려주세요", type=["mp3", "wav", "m4a"])
+# 2. 음성 입력 선택 (마이크 실시간 녹음 OR 파일 업로드)
+st.subheader("🎧 2. 회의 음성 입력 방식 선택")
+input_method = st.radio("원하시는 입력 방식을 선택해 주세요:", ["마이크로 실시간 녹음하기", "음성 파일 업로드하기"])
 
-if uploaded_file is not None:
-    st.audio(uploaded_file, format='audio/mp3')
-    st.success("음성 파일 업로드 완료!")
+audio_bytes = None
+
+if input_method == "마이크로 실시간 녹음하기":
+    st.info("💡 아래 마이크 버튼을 누르면 녹음이 시작됩니다. 말을 마친 뒤 버튼을 한 번 더 누르면 녹음이 완료됩니다!")
+    # 마이크 녹음 컴포넌트 호출
+    audio_bytes = audio_recorder(
+        text="마이크 버튼을 눌러 녹음을 시작하세요",
+        recording_color="#e84118",
+        neutral_color="#fbc531",
+        icon_size="2x"
+    )
+    if audio_bytes:
+        st.success("마이크 녹음이 완료되었습니다!")
+        st.audio(audio_bytes, format="audio/wav")
+
+else:
+    uploaded_file = st.file_uploader("녹음된 회의 음성 파일(mp3, wav, m4a)을 올려주세요", type=["mp3", "wav", "m4a"])
+    if uploaded_file is not None:
+        audio_bytes = uploaded_file.read()
+        st.audio(uploaded_file, format='audio/mp3')
+        st.success("음성 파일 업로드 완료!")
+
+st.markdown("---")
 
 # 3. 요약 및 정리 실행 버튼
 if st.button("✨ 회의록 정리 및 요약 시작하기", type="primary"):
@@ -41,7 +61,7 @@ if st.button("✨ 회의록 정리 및 요약 시작하기", type="primary"):
         st.markdown(f"### 🏢 회의대상 업체")
         st.info(f"**{meeting_company if meeting_company else '입력된 업체 없음'}**")
         
-        # 2. 회의날짜, 장소, 참석자, 주제 (한눈에 보기 쉽게 박스로 정리)
+        # 2. 기본 개요
         st.markdown("### 📌 기본 개요")
         st.markdown(f"""
         - **날짜:** {meeting_date}
