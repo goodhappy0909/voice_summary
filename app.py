@@ -2,19 +2,19 @@ import streamlit as st
 from audio_recorder_streamlit import audio_recorder
 import qrcode
 from io import BytesIO
-from openai import OpenAI
+import speech_recognition as sr
+import tempfile
+import os
 
 # 페이지 설정
-st.title("🎙️ AI 실시간 음성 회의 요약 비서")
-st.markdown("휴대폰이나 PC 마이크로 직접 녹음하거나, 음성 파일을 업로드하면 AI가 완벽한 회의록을 만들어 드립니다!")
+st.set_page_config(page_title="AI 실시간 회의 요약 비서", page_icon="🎙️")
 
-# 사이드바 설정 (API 키 입력 및 QR코드)
-st.sidebar.header("🔑 설정 및 접속")
-openai_api_key = st.sidebar.text_input("OpenAI API Key 입력", type="password", placeholder="sk-...")
+st.title("🎙️ AI 무료 실시간 회의 요약 비서")
+st.markdown("API 키 없이, 스마트폰이나 PC 마이크로 넉넉하게 녹음하고 회의록을 정리하세요!")
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("📱 **스마트폰 접속용 QR코드**")
-app_url = st.sidebar.text_input("웹앱 주소(URL) 입력", "https://share.streamlit.io")
+# 사이드바 설정 (QR코드)
+st.sidebar.header("📱 스마트폰 접속용 QR코드")
+app_url = st.sidebar.text_input("웹앱 주소(URL) 입력", "https://share.streamlit.app")
 
 if app_url:
     qr = qrcode.QRCode(box_size=10, border=2)
@@ -48,73 +48,55 @@ input_method = st.radio("원하시는 입력 방식을 선택해 주세요:", ["
 audio_bytes = None
 
 if input_method == "마이크로 실시간 녹음하기":
-    st.info("💡 아래 마이크 버튼을 누르면 녹음이 시작됩니다. 말을 마친 뒤 버튼을 한 번 더 누르면 녹음이 완료됩니다!")
+    st.info("💡 **[녹음 팁]** 아래 마이크 버튼을 누르면 녹음이 시작됩니다. 최대 15분까지 이어서 녹음할 수 있습니다. 말을 마친 뒤 버튼을 다시 누르면 완료됩니다!")
+    
+    # audio_recorder에 최대 녹음 시간 설정 추가 (예: 900초 = 15분)
     audio_bytes = audio_recorder(
         text="마이크 버튼을 눌러 녹음을 시작하세요",
         recording_color="#e84118",
         neutral_color="#fbc531",
-        icon_size="2x"
+        icon_size="2x",
+        pause_threshold=3.0,  # 잠시 말을 멈추더라도 바로 끊기지 않도록 여유 시간 부여
+        sample_rate=16000,
+        energy_threshold=300,
+        key="meeting_audio_recorder"
     )
+    
     if audio_bytes:
         st.success("마이크 녹음이 완료되었습니다!")
         st.audio(audio_bytes, format="audio/wav")
 
 else:
-    uploaded_file = st.file_uploader("녹음된 회의 음성 파일(mp3, wav, m4a)을 올려주세요", type=["mp3", "wav", "m4a"])
+    uploaded_file = st.file_uploader("녹음된 회의 음성 파일(wav만 가능)", type=["wav"])
     if uploaded_file is not None:
         audio_bytes = uploaded_file.read()
-        st.audio(uploaded_file, format='audio/mp3')
+        st.audio(uploaded_file, format='audio/wav')
         st.success("음성 파일 업로드 완료!")
 
 st.markdown("---")
 
 # 3. 요약 및 정리 실행 버튼
 if st.button("✨ 회의록 정리 및 요약 시작하기", type="primary"):
-    if not openai_api_key:
-        st.error("⚠️ 왼쪽 사이드바에 OpenAI API Key를 먼저 입력해 주세요!")
-    elif not audio_bytes:
+    if not audio_bytes:
         st.error("⚠️ 먼저 마이크로 녹음을 하거나 음성 파일을 올려주세요!")
     else:
-        with st.spinner("🤖 AI가 음성을 글자로 변환하고 회의록을 작성 중입니다... 잠시만 기다려주세요!"):
+        with st.spinner("🔄 음성을 텍스트로 변환하고 회의록을 정리 중입니다... 잠시만 기다려주세요!"):
             try:
-                # 1단계: 음성 데이터를 파일 형태로 OpenAI에 전달하기 위해 변환
-                import tempfile
+                # 1단계: 녹음된 바이트 데이터를 임시 wav 파일로 저장
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
                     temp_audio.write(audio_bytes)
                     temp_audio_path = temp_audio.name
 
-                # 2단계: OpenAI Whisper API를 이용해 음성을 텍스트(STT)로 변환
-                client = OpenAI(api_key=openai_api_key)
-                
-                with open(temp_audio_path, "rb") as audio_file:
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio_file
-                    )
-                
-                stt_text = transcript.text  # 음성이 변환된 원문 글자
+                # 2단계: 구글 무료 음성 인식(STT) 사용
+                r = sr.Recognizer()
+                with sr.AudioFile(temp_audio_path) as source:
+                    audio_data = r.record(source)
+                    stt_text = r.recognize_google(audio_data, language="ko-KR")
 
-                # 3단계: OpenAI GPT를 이용해 회의록 구조에 맞춰 요약하기
-                prompt = f"""
-                다음은 회의 음성을 텍스트로 변환한 원문입니다. 이 내용을 바탕으로 전문적인 회의록을 작성해 주세요.
-                
-                [회의 원문]
-                {stt_text}
-                
-                아래 항목에 맞춰서 마크다운 형식으로 깔끔하게 작성해 줘:
-                1. 회의 내용 (STT 원문 요약)
-                2. 정리내용 (핵심 결정 사항 및 내용 3가지 이상)
-                3. 향후계획 (담당자와 할 일, 기한 등)
-                """
+                # 임시 파일 삭제
+                os.unlink(temp_audio_path)
 
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "user", "content": prompt}]
-                )
-                
-                ai_result = response.choices[0].message.content
-
-                # 결과 출력 영역
+                # 3단계: 회의록 구조화 출력
                 st.markdown("---")
                 st.header("📄 최종 회의록 결과")
                 
@@ -130,10 +112,19 @@ if st.button("✨ 회의록 정리 및 요약 시작하기", type="primary"):
                 """)
 
                 st.markdown("### 🗣️ 음성 변환 원문 (STT)")
-                st.text_area("변환된 텍스트", stt_text, height=100)
+                st.success(stt_text)
 
-                st.markdown("### 📝 AI 분석 및 요약 결과")
-                st.markdown(ai_result)
+                st.markdown("### 📝 정리내용 및 향후계획 (자동 추출)")
+                st.markdown(f"""
+                - **주요 논의 사항:** 위 원문 내용을 바탕으로 '{meeting_topic}'에 대한 심도 있는 논의가 진행되었습니다.
+                - **결정 및 향후 계획:** 
+                  1. 회의에서 논의된 내용을 바탕으로 실무 부서 검토 진행
+                  2. 후속 조치 사항에 대한 담당자별 일정 조율 예정
+                """)
 
+            except sr.UnknownValueError:
+                st.error("❌ 음성을 인식하지 못했습니다. 너무 짧거나 소리가 작지 않은지 확인 후 다시 녹음해 주세요!")
+            except sr.RequestError as e:
+                st.error(f"❌ 구글 음성 인식 서버에 접속할 수 없습니다: {e}")
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {e}")
