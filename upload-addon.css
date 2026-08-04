@@ -1,0 +1,266 @@
+.upload-addon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-md, 10px);
+  background: linear-gradient(135deg, #10b981, #22c55e);
+  color: #fff;
+  font-family: var(--font-sans, sans-serif);
+  font-size: .76rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, .28);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.upload-addon-btn:disabled {
+  cursor: wait;
+  opacity: .72;
+}
+
+.meeting-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+  margin-top: -2px;
+}
+
+.meeting-action-row .new-meeting-btn,
+.meeting-action-row .upload-addon-btn {
+  width: 40%;
+  min-width: 96px;
+  max-width: 124px;
+  min-height: 36px;
+  padding-left: 8px;
+  padding-right: 8px;
+  font-size: .74rem;
+  line-height: 1.2;
+  box-shadow: none;
+}
+
+.upload-addon-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, .72);
+  backdrop-filter: blur(8px);
+}
+
+.upload-addon-overlay.open {
+  display: flex;
+}
+
+.upload-addon-modal {
+  width: min(720px, 100%);
+  max-height: 92dvh;
+  overflow: auto;
+  border: 1px solid var(--border, rgba(255,255,255,.08));
+  border-radius: 18px;
+  background: var(--bg-card, #141e32);
+  color: var(--text-primary, #f1f5f9);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .55);
+}
+
+.upload-addon-head,
+.upload-addon-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,.08));
+}
+
+.upload-addon-foot {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border, rgba(255,255,255,.08));
+  border-bottom: 0;
+}
+
+.upload-addon-title {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.upload-addon-close,
+.upload-addon-action {
+  min-height: 38px;
+  border: 1px solid var(--border, rgba(255,255,255,.08));
+  border-radius: 10px;
+  background: var(--bg-elevated, #1a2540);
+  color: var(--text-primary, #f1f5f9);
+  font-family: var(--font-sans, sans-serif);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.upload-addon-close {
+  width: 38px;
+}
+
+.upload-addon-action {
+  padding: 0 14px;
+}
+
+.upload-addon-action.primary {
+  border: 0;
+  background: linear-gradient(135deg, #6366f1, #7c3aed);
+  color: #fff;
+}
+
+.upload-addon-action:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
+.upload-addon-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.upload-addon-field {
+  display: grid;
+  gap: 7px;
+}
+
+.upload-addon-label {
+  color: var(--text-secondary, #94a3b8);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.upload-addon-input,
+.upload-addon-select,
+.upload-addon-textarea {
+  width: 100%;
+  border: 1px solid var(--border, rgba(255,255,255,.08));
+  border-radius: 10px;
+  background: var(--bg-elevated, #1a2540);
+  color: var(--text-primary, #f1f5f9);
+  font-family: var(--font-sans, sans-serif);
+  font-size: .9rem;
+}
+
+.upload-addon-input,
+.upload-addon-select {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.upload-addon-textarea {
+  min-height: 150px;
+  padding: 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.upload-addon-status {
+  min-height: 24px;
+  color: var(--text-secondary, #94a3b8);
+  font-size: .84rem;
+}
+
+.upload-addon-progress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-elevated, #1a2540);
+}
+
+.upload-addon-progress > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+  transition: width .2s ease;
+}
+
+@media (max-width: 720px) {
+  .sidebar-header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .sidebar-logo {
+    max-width: calc(100% - 210px);
+  }
+
+  .upload-addon-btn {
+    min-height: 34px;
+    padding: 0 8px;
+    font-size: .72rem;
+  }
+
+  .meeting-action-row {
+    width: auto;
+    min-width: 198px;
+    margin-left: auto;
+    margin-top: 0;
+    gap: 6px;
+  }
+
+  .meeting-action-row .new-meeting-btn,
+  .meeting-action-row .upload-addon-btn {
+    width: 96px;
+    min-width: 96px;
+    max-width: 96px;
+    min-height: 34px;
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: .68rem;
+  }
+
+  .upload-addon-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .upload-addon-modal {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .upload-addon-body,
+  .upload-addon-head,
+  .upload-addon-foot {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .upload-addon-foot {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .sidebar-logo {
+    max-width: 100%;
+  }
+
+  .meeting-action-row {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .meeting-action-row .new-meeting-btn,
+  .meeting-action-row .upload-addon-btn {
+    width: min(40%, 104px);
+    min-width: 88px;
+    max-width: 104px;
+  }
+}
